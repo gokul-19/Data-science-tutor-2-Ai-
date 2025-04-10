@@ -3,7 +3,7 @@
 An interactive AI tutor built with Streamlit and Google Gemini that helps users learn data science concepts.
 ## 🔗 Try it on Streamlit
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)]([https://your-streamlit-cloud-app-link.streamlit.app](https://d7fpaahmy3cwiaoa2piehp.streamlit.app/))
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://d7fpaahmy3cwiaoa2piehp.streamlit.app/))
 
 ## Features
 
