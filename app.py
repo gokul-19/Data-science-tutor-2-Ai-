@@ -1,14 +1,13 @@
-import os
 import random
 import requests
 import streamlit as st
 import google.generativeai as genai
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 # --------------------------------------------------
-# Streamlit Page Config (MUST be first Streamlit call)
+# Streamlit Page Config (FIRST Streamlit command)
 # --------------------------------------------------
 st.set_page_config(
     page_title="DataSage - AI Data Science Tutor",
@@ -17,7 +16,7 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# Secrets / API Keys
+# API Keys (Streamlit Secrets)
 # --------------------------------------------------
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 UNSPLASH_API_KEY = st.secrets["UNSPLASH_API_KEY"]
@@ -34,7 +33,7 @@ try:
         google_api_key=GEMINI_API_KEY
     )
 except Exception as e:
-    st.error(f"❌ Gemini initialization failed: {e}")
+    st.error(f"Gemini initialization failed: {e}")
     st.stop()
 
 # --------------------------------------------------
@@ -43,55 +42,50 @@ except Exception as e:
 def get_unsplash_image():
     queries = [
         "3d robot assistant",
-        "3d digital assistant",
         "3d ai chatbot",
-        "3d futuristic ai",
-        "hologram ai assistant"
+        "futuristic ai hologram",
+        "3d digital assistant"
     ]
-
     query = random.choice(queries)
     url = f"https://api.unsplash.com/photos/random?query={query}&client_id={UNSPLASH_API_KEY}"
 
     try:
-        response = requests.get(url, timeout=10).json()
-        return response.get("urls", {}).get("regular", "")
+        data = requests.get(url, timeout=10).json()
+        return data.get("urls", {}).get("regular", "")
     except Exception:
         return ""
 
 # --------------------------------------------------
-# Custom CSS
+# CSS
 # --------------------------------------------------
-def load_css():
-    st.markdown("""
-    <style>
-    .main {
-        background: linear-gradient(135deg, #051937, #004d7a, #008793, #00bf72);
-        background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
-    }
-    @keyframes gradient {
-        0% {background-position: 0% 50%;}
-        50% {background-position: 100% 50%;}
-        100% {background-position: 0% 50%;}
-    }
-    .user-bubble {
-        background: rgba(0,123,255,0.25);
-        border-radius: 20px 20px 0 20px;
-        padding: 15px;
-        margin: 10px 0;
-        max-width: 80%;
-    }
-    .ai-bubble {
-        background: rgba(255,255,255,0.15);
-        border-radius: 20px 20px 20px 0;
-        padding: 15px;
-        margin: 10px 0;
-        max-width: 80%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-load_css()
+st.markdown("""
+<style>
+.main {
+    background: linear-gradient(135deg, #051937, #004d7a, #008793, #00bf72);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+}
+@keyframes gradient {
+    0% {background-position: 0% 50%;}
+    50% {background-position: 100% 50%;}
+    100% {background-position: 0% 50%;}
+}
+.user {
+    background: rgba(0,123,255,0.25);
+    padding: 15px;
+    border-radius: 20px 20px 0 20px;
+    margin: 10px 0;
+    max-width: 80%;
+}
+.ai {
+    background: rgba(255,255,255,0.15);
+    padding: 15px;
+    border-radius: 20px 20px 20px 0;
+    margin: 10px 0;
+    max-width: 80%;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --------------------------------------------------
 # Sidebar
@@ -99,111 +93,84 @@ load_css()
 with st.sidebar:
     st.markdown("## ⚙️ Console")
 
-    profiles = {
-        "Beginner": "👶",
-        "Intermediate": "👨‍💻",
-        "Advanced": "🧙‍♂️"
-    }
-
     profile_label = st.selectbox(
         "Your Expertise Level",
-        [f"{v} {k}" for k, v in profiles.items()],
+        ["👶 Beginner", "👨‍💻 Intermediate", "🧙‍♂️ Advanced"],
         index=1
     )
 
-    st.markdown("### 📊 Skill Focus")
-    python_lvl = st.slider("Python", 0, 100, 70)
-    stats_lvl = st.slider("Statistics", 0, 100, 60)
-    ml_lvl = st.slider("Machine Learning", 0, 100, 50)
-
 # --------------------------------------------------
-# Main Layout
+# Layout
 # --------------------------------------------------
-image_url = get_unsplash_image()
+img = get_unsplash_image()
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.markdown("""
-    <h1 style="text-align:center;">DataSage 🧠</h1>
-    <p style="text-align:center;">Your AI Data Science Tutor</p>
-    """, unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center;'>DataSage 🧠</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>AI Data Science Tutor</p>", unsafe_allow_html=True)
 
 with col2:
-    if image_url:
-        st.image(image_url, use_container_width=True)
+    if img:
+        st.image(img, use_container_width=True)
 
 # --------------------------------------------------
-# Prompt + Chain (NEW LangChain Syntax)
+# Prompt + Chain (LATEST LangChain)
 # --------------------------------------------------
 prompt = PromptTemplate(
-    input_variables=["question", "profile"],
+    input_variables=["question", "level"],
     template="""
-You are an expert and friendly AI tutor for Data Science.
+You are a friendly and expert Data Science tutor.
 
-Only answer Data Science, Machine Learning, Statistics,
-Python, SQL, AI, or Visualization questions.
+ONLY answer questions related to:
+Data Science, Machine Learning, AI, Python, Statistics, SQL, Visualization.
 
-User expertise level: {profile}
+User level: {level}
 
 Question:
 {question}
 
-Give a clear explanation with examples if helpful.
+Give a clear, structured explanation with examples.
 """
 )
 
 chain = prompt | llm
 
 # --------------------------------------------------
-# Chat State
+# Session State
 # --------------------------------------------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-profile = profile_label.split(" ", 1)[1]
+level = profile_label.split(" ", 1)[1]
 
 # --------------------------------------------------
-# User Input
+# Input
 # --------------------------------------------------
-user_question = st.text_input(
+question = st.text_input(
     "",
     placeholder="Ask anything about Data Science, ML, Python, Statistics..."
 )
 
 send = st.button("Send 🚀")
 
-if user_question and send:
+if question and send:
     try:
-        response = chain.invoke({
-            "question": user_question,
-            "profile": profile
-        })
+        res = chain.invoke({"question": question, "level": level})
+        answer = res.content if hasattr(res, "content") else str(res)
 
-        answer = response.content if hasattr(response, "content") else str(response)
-
-        st.session_state.chat_history.append({
-            "q": user_question,
-            "a": answer
-        })
-
+        st.session_state.chat.append((question, answer))
     except Exception as e:
-        st.error(f"⚠️ Error: {e}")
+        st.error(e)
 
 # --------------------------------------------------
-# Display Chat
+# Chat Display
 # --------------------------------------------------
 st.markdown("### 💬 Conversation")
 
-if st.session_state.chat_history:
-    for chat in st.session_state.chat_history:
-        st.markdown(
-            f"<div class='user-bubble'><b>You:</b> {chat['q']}</div>",
-            unsafe_allow_html=True
-        )
-        st.markdown(
-            f"<div class='ai-bubble'><b>DataSage:</b> {chat['a']}</div>",
-            unsafe_allow_html=True
-        )
+if st.session_state.chat:
+    for q, a in st.session_state.chat:
+        st.markdown(f"<div class='user'><b>You:</b> {q}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='ai'><b>DataSage:</b> {a}</div>", unsafe_allow_html=True)
 else:
     st.info("👋 Ask your first Data Science question!")
 
@@ -212,7 +179,7 @@ else:
 # --------------------------------------------------
 st.markdown("""
 <hr>
-<p style="text-align:center; font-size:12px;">
-🧠 Powered by Gemini • 🖼️ Unsplash • 🚀 Streamlit
+<p style="text-align:center;font-size:12px;">
+🧠 Gemini • 🖼️ Unsplash • 🚀 Streamlit
 </p>
 """, unsafe_allow_html=True)
