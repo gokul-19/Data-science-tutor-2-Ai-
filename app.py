@@ -1,4 +1,4 @@
-import random
+ximport random
 import requests
 import streamlit as st
 import google.generativeai as genai
@@ -18,23 +18,24 @@ st.set_page_config(
 # -----------------------------
 # API Keys
 # -----------------------------
-GEMINI_API_KEY = "AIzaSyAnA1OkxkfzqnROPHb0nI0m09R7uxlHmWY"  # Your key
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 UNSPLASH_API_KEY = st.secrets["UNSPLASH_API_KEY"]
+HF_API_KEY = st.secrets.get("HF_API_KEY", "")  # Hugging Face token for fallback
 
 # -----------------------------
-# Initialize Gemini
+# Initialize Gemini LLM
 # -----------------------------
 try:
     genai.configure(api_key=GEMINI_API_KEY)
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash",  # Stable model
+        model="gemini-2.0-flash",  # primary model
         temperature=0.3,
         google_api_key=GEMINI_API_KEY
     )
 except Exception as e:
-    st.error(f"❌ Gemini initialization failed: {e}")
-    st.stop()
+    st.warning(f"⚠️ Gemini initialization failed: {e}")
+    llm = None  # fallback to Hugging Face
 
 # -----------------------------
 # Unsplash Image Fetcher
@@ -72,7 +73,7 @@ with st.sidebar:
     profile_label = st.selectbox("Expertise Level", ["Beginner", "Intermediate", "Advanced"], index=1)
 
 # -----------------------------
-# Layout
+# Layout: Header + Image
 # -----------------------------
 img_url = get_unsplash_image()
 col1, col2 = st.columns([2, 1])
@@ -91,7 +92,7 @@ prompt = PromptTemplate(
     template="""
 You are an expert AI Data Science tutor.
 
-Only answer questions related to:
+Answer only questions related to:
 Data Science, Machine Learning, AI, Python, Statistics, SQL, Visualization.
 
 Question:
@@ -100,30 +101,48 @@ Question:
 Provide a detailed explanation with examples.
 """
 )
-chain = prompt | llm
+if llm:
+    chain = prompt | llm
 
+# -----------------------------
+# Chat History
+# -----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # -----------------------------
 # User Input
 # -----------------------------
-user_question = st.text_input(
-    "Ask a question about Data Science, ML, Python, etc.",
-    ""
-)
+user_question = st.text_input("Ask a question about Data Science, ML, Python, etc.")
 send_button = st.button("Send 🚀")
 
 if user_question and send_button:
-    try:
-        res = chain.invoke({"question": user_question})
-        answer = res.content if hasattr(res, "content") else str(res)
-    except Exception as e:
-        # ✅ Handle quota errors gracefully
-        if "RESOURCE_EXHAUSTED" in str(e):
-            answer = "⚠️ Gemini API quota exceeded. Please wait or upgrade your plan."
-        else:
-            answer = f"⚠️ Gemini API error: {e}"
+    answer = ""
+    # Try Gemini first
+    if llm:
+        try:
+            res = chain.invoke({"question": user_question})
+            answer = res.content if hasattr(res, "content") else str(res)
+        except Exception as e:
+            if "RESOURCE_EXHAUSTED" in str(e):
+                answer = "⚠️ Gemini quota exceeded. Using free fallback model..."
+                llm = None  # force fallback
+            else:
+                answer = f"⚠️ Gemini API error: {e}"
+
+    # Fallback to Hugging Face (free)
+    if not llm and HF_API_KEY:
+        try:
+            hf_api = "https://api-inference.huggingface.co/models/mistral-7b-instruct"
+            headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+            payload = {"inputs": user_question}
+            response = requests.post(hf_api, headers=headers, json=payload, timeout=30)
+            hf_text = response.json()[0]["generated_text"]
+            answer = hf_text
+        except Exception as e:
+            answer = f"⚠️ Fallback Hugging Face error: {e}"
+    elif not llm and not HF_API_KEY:
+        answer = "⚠️ Gemini quota exceeded and no Hugging Face API key provided."
 
     st.session_state.chat_history.append({"q": user_question, "a": answer})
 
@@ -144,6 +163,6 @@ else:
 st.markdown("""
 <hr>
 <p style="text-align:center;font-size:12px;">
-🧠 Powered by Gemini 2.0 • 🖼️ Unsplash • 🚀 Streamlit
+🧠 Powered by Gemini 2.0 + Hugging Face fallback • 🖼️ Unsplash • 🚀 Streamlit
 </p>
 """, unsafe_allow_html=True)
