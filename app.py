@@ -7,7 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 # --------------------------------------------------
-# Streamlit Page Config (FIRST Streamlit command)
+# Streamlit Page Config (MUST be first)
 # --------------------------------------------------
 st.set_page_config(
     page_title="DataSage - AI Data Science Tutor",
@@ -22,18 +22,18 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 UNSPLASH_API_KEY = st.secrets["UNSPLASH_API_KEY"]
 
 # --------------------------------------------------
-# Initialize Gemini
+# Initialize Gemini (v1beta-safe model)
 # --------------------------------------------------
 try:
     genai.configure(api_key=GEMINI_API_KEY)
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-1.5-flash-001",   # ✅ FIXED MODEL
         temperature=0.3,
         google_api_key=GEMINI_API_KEY
     )
 except Exception as e:
-    st.error(f"Gemini initialization failed: {e}")
+    st.error(f"❌ Gemini initialization failed: {e}")
     st.stop()
 
 # --------------------------------------------------
@@ -56,7 +56,7 @@ def get_unsplash_image():
         return ""
 
 # --------------------------------------------------
-# CSS
+# CSS Styling
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -107,7 +107,7 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     st.markdown("<h1 style='text-align:center;'>DataSage 🧠</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>AI Data Science Tutor</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Your AI Data Science Tutor</p>", unsafe_allow_html=True)
 
 with col2:
     if img:
@@ -144,7 +144,7 @@ if "chat" not in st.session_state:
 level = profile_label.split(" ", 1)[1]
 
 # --------------------------------------------------
-# Input
+# User Input
 # --------------------------------------------------
 question = st.text_input(
     "",
@@ -157,10 +157,9 @@ if question and send:
     try:
         res = chain.invoke({"question": question, "level": level})
         answer = res.content if hasattr(res, "content") else str(res)
-
         st.session_state.chat.append((question, answer))
     except Exception as e:
-        st.error(e)
+        st.error(f"⚠️ {e}")
 
 # --------------------------------------------------
 # Chat Display
@@ -180,6 +179,6 @@ else:
 st.markdown("""
 <hr>
 <p style="text-align:center;font-size:12px;">
-🧠 Gemini • 🖼️ Unsplash • 🚀 Streamlit
+🧠 Powered by Gemini • 🖼️ Unsplash • 🚀 Streamlit
 </p>
 """, unsafe_allow_html=True)
