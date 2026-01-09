@@ -7,178 +7,115 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 # --------------------------------------------------
-# Streamlit Page Config (MUST be first)
+# Streamlit config
 # --------------------------------------------------
 st.set_page_config(
     page_title="DataSage - AI Data Science Tutor",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 # --------------------------------------------------
-# API Keys (Streamlit Secrets)
+# Secrets
 # --------------------------------------------------
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 UNSPLASH_API_KEY = st.secrets["UNSPLASH_API_KEY"]
 
 # --------------------------------------------------
-# Initialize Gemini (v1beta-safe model)
+# Gemini initialization (NEW MODEL)
 # --------------------------------------------------
 try:
     genai.configure(api_key=GEMINI_API_KEY)
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash-001",   # ✅ FIXED MODEL
+        model="gemini-2.0-flash-exp",   # ✅ NEW & WORKING
         temperature=0.3,
         google_api_key=GEMINI_API_KEY
     )
 except Exception as e:
-    st.error(f"❌ Gemini initialization failed: {e}")
+    st.error(f"Gemini init failed: {e}")
     st.stop()
 
 # --------------------------------------------------
-# Unsplash Image Fetcher
+# Unsplash image
 # --------------------------------------------------
 def get_unsplash_image():
     queries = [
-        "3d robot assistant",
-        "3d ai chatbot",
-        "futuristic ai hologram",
-        "3d digital assistant"
+        "3d ai assistant",
+        "futuristic ai robot",
+        "hologram ai",
+        "3d chatbot"
     ]
-    query = random.choice(queries)
-    url = f"https://api.unsplash.com/photos/random?query={query}&client_id={UNSPLASH_API_KEY}"
-
+    q = random.choice(queries)
+    url = f"https://api.unsplash.com/photos/random?query={q}&client_id={UNSPLASH_API_KEY}"
     try:
-        data = requests.get(url, timeout=10).json()
-        return data.get("urls", {}).get("regular", "")
+        return requests.get(url, timeout=10).json()["urls"]["regular"]
     except Exception:
         return ""
 
 # --------------------------------------------------
-# CSS Styling
+# UI
 # --------------------------------------------------
 st.markdown("""
 <style>
-.main {
-    background: linear-gradient(135deg, #051937, #004d7a, #008793, #00bf72);
-    background-size: 400% 400%;
-    animation: gradient 15s ease infinite;
-}
-@keyframes gradient {
-    0% {background-position: 0% 50%;}
-    50% {background-position: 100% 50%;}
-    100% {background-position: 0% 50%;}
-}
-.user {
-    background: rgba(0,123,255,0.25);
-    padding: 15px;
-    border-radius: 20px 20px 0 20px;
-    margin: 10px 0;
-    max-width: 80%;
-}
-.ai {
-    background: rgba(255,255,255,0.15);
-    padding: 15px;
-    border-radius: 20px 20px 20px 0;
-    margin: 10px 0;
-    max-width: 80%;
-}
+.user {background:#1f77b433;padding:15px;border-radius:20px 20px 0 20px;margin:8px 0}
+.ai {background:#ffffff22;padding:15px;border-radius:20px 20px 20px 0;margin:8px 0}
 </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------
-# Sidebar
-# --------------------------------------------------
 with st.sidebar:
-    st.markdown("## ⚙️ Console")
-
-    profile_label = st.selectbox(
-        "Your Expertise Level",
+    level_label = st.selectbox(
+        "Your Level",
         ["👶 Beginner", "👨‍💻 Intermediate", "🧙‍♂️ Advanced"],
         index=1
     )
 
-# --------------------------------------------------
-# Layout
-# --------------------------------------------------
 img = get_unsplash_image()
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    st.markdown("<h1 style='text-align:center;'>DataSage 🧠</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Your AI Data Science Tutor</p>", unsafe_allow_html=True)
-
-with col2:
+c1, c2 = st.columns([2, 1])
+with c1:
+    st.markdown("<h1>DataSage 🧠</h1>", unsafe_allow_html=True)
+    st.markdown("AI Data Science Tutor")
+with c2:
     if img:
         st.image(img, use_container_width=True)
 
 # --------------------------------------------------
-# Prompt + Chain (LATEST LangChain)
+# Prompt (LangChain NEW)
 # --------------------------------------------------
 prompt = PromptTemplate(
     input_variables=["question", "level"],
     template="""
-You are a friendly and expert Data Science tutor.
+You are an expert Data Science tutor.
 
-ONLY answer questions related to:
-Data Science, Machine Learning, AI, Python, Statistics, SQL, Visualization.
+Only answer Data Science / ML / AI / Python / Statistics questions.
 
 User level: {level}
 
 Question:
 {question}
 
-Give a clear, structured explanation with examples.
+Give a clear explanation with examples.
 """
 )
 
 chain = prompt | llm
+level = level_label.split(" ", 1)[1]
 
 # --------------------------------------------------
-# Session State
+# Chat state
 # --------------------------------------------------
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-level = profile_label.split(" ", 1)[1]
+q = st.text_input("Ask a Data Science question")
+if st.button("Send 🚀") and q:
+    res = chain.invoke({"question": q, "level": level})
+    ans = res.content if hasattr(res, "content") else str(res)
+    st.session_state.chat.append((q, ans))
 
 # --------------------------------------------------
-# User Input
+# Display
 # --------------------------------------------------
-question = st.text_input(
-    "",
-    placeholder="Ask anything about Data Science, ML, Python, Statistics..."
-)
-
-send = st.button("Send 🚀")
-
-if question and send:
-    try:
-        res = chain.invoke({"question": question, "level": level})
-        answer = res.content if hasattr(res, "content") else str(res)
-        st.session_state.chat.append((question, answer))
-    except Exception as e:
-        st.error(f"⚠️ {e}")
-
-# --------------------------------------------------
-# Chat Display
-# --------------------------------------------------
-st.markdown("### 💬 Conversation")
-
-if st.session_state.chat:
-    for q, a in st.session_state.chat:
-        st.markdown(f"<div class='user'><b>You:</b> {q}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='ai'><b>DataSage:</b> {a}</div>", unsafe_allow_html=True)
-else:
-    st.info("👋 Ask your first Data Science question!")
-
-# --------------------------------------------------
-# Footer
-# --------------------------------------------------
-st.markdown("""
-<hr>
-<p style="text-align:center;font-size:12px;">
-🧠 Powered by Gemini • 🖼️ Unsplash • 🚀 Streamlit
-</p>
-""", unsafe_allow_html=True)
+st.markdown("## 💬 Conversation")
+for q, a in st.session_state.chat:
+    st.markdown(f"<div class='user'><b>You:</b> {q}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='ai'><b>DataSage:</b> {a}</div>", unsafe_allow_html=True)
