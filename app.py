@@ -7,36 +7,37 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 
 # --------------------------------------------------
-# Streamlit config
+# Streamlit Config
 # --------------------------------------------------
 st.set_page_config(
     page_title="DataSage - AI Data Science Tutor",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # --------------------------------------------------
-# Secrets
+# Secrets / API Keys
 # --------------------------------------------------
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 UNSPLASH_API_KEY = st.secrets["UNSPLASH_API_KEY"]
 
 # --------------------------------------------------
-# Gemini initialization (NEW MODEL)
+# Initialize Gemini
 # --------------------------------------------------
 try:
     genai.configure(api_key=GEMINI_API_KEY)
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash-exp",   # ✅ NEW & WORKING
+        model="gemini-2.0-large",   # ✅ stable model
         temperature=0.3,
         google_api_key=GEMINI_API_KEY
     )
 except Exception as e:
-    st.error(f"Gemini init failed: {e}")
+    st.error(f"❌ Gemini initialization failed: {e}")
     st.stop()
 
 # --------------------------------------------------
-# Unsplash image
+# Unsplash Image Fetcher
 # --------------------------------------------------
 def get_unsplash_image():
     queries = [
@@ -48,74 +49,105 @@ def get_unsplash_image():
     q = random.choice(queries)
     url = f"https://api.unsplash.com/photos/random?query={q}&client_id={UNSPLASH_API_KEY}"
     try:
-        return requests.get(url, timeout=10).json()["urls"]["regular"]
+        data = requests.get(url, timeout=10).json()
+        return data.get("urls", {}).get("regular", "")
     except Exception:
         return ""
 
 # --------------------------------------------------
-# UI
+# CSS Styling
 # --------------------------------------------------
 st.markdown("""
 <style>
-.user {background:#1f77b433;padding:15px;border-radius:20px 20px 0 20px;margin:8px 0}
-.ai {background:#ffffff22;padding:15px;border-radius:20px 20px 20px 0;margin:8px 0}
+.user {background:rgba(0,123,255,0.25);padding:15px;border-radius:20px 20px 0 20px;margin:8px 0;max-width:80%}
+.ai {background:rgba(255,255,255,0.15);padding:15px;border-radius:20px 20px 20px 0;margin:8px 0;max-width:80%}
 </style>
 """, unsafe_allow_html=True)
 
+# --------------------------------------------------
+# Sidebar
+# --------------------------------------------------
 with st.sidebar:
-    level_label = st.selectbox(
-        "Your Level",
+    st.markdown("## ⚙️ Profile")
+    profile_label = st.selectbox(
+        "Your Expertise Level",
         ["👶 Beginner", "👨‍💻 Intermediate", "🧙‍♂️ Advanced"],
         index=1
     )
 
+# --------------------------------------------------
+# Layout
+# --------------------------------------------------
 img = get_unsplash_image()
-c1, c2 = st.columns([2, 1])
-with c1:
-    st.markdown("<h1>DataSage 🧠</h1>", unsafe_allow_html=True)
-    st.markdown("AI Data Science Tutor")
-with c2:
+col1, col2 = st.columns([2, 1])
+with col1:
+    st.markdown("<h1 style='text-align:center;'>DataSage 🧠</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;'>Your AI Data Science Tutor</p>", unsafe_allow_html=True)
+with col2:
     if img:
         st.image(img, use_container_width=True)
 
 # --------------------------------------------------
-# Prompt (LangChain NEW)
+# Prompt + Chain (LangChain)
 # --------------------------------------------------
 prompt = PromptTemplate(
-    input_variables=["question", "level"],
+    input_variables=["question"],
     template="""
-You are an expert Data Science tutor.
+You are an expert AI Data Science tutor.
 
-Only answer Data Science / ML / AI / Python / Statistics questions.
-
-User level: {level}
+Only answer questions related to:
+Data Science, Machine Learning, AI, Python, Statistics, SQL, Visualization.
 
 Question:
 {question}
 
-Give a clear explanation with examples.
+Provide detailed explanations with examples.
 """
 )
-
 chain = prompt | llm
-level = level_label.split(" ", 1)[1]
 
 # --------------------------------------------------
-# Chat state
+# Session State
 # --------------------------------------------------
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-q = st.text_input("Ask a Data Science question")
-if st.button("Send 🚀") and q:
-    res = chain.invoke({"question": q, "level": level})
-    ans = res.content if hasattr(res, "content") else str(res)
-    st.session_state.chat.append((q, ans))
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 # --------------------------------------------------
-# Display
+# User Input
+# --------------------------------------------------
+user_question = st.text_input(
+    "Ask a question about Data Science, ML, Python, etc.",
+    ""
+)
+send_button = st.button("Send 🚀")
+
+if user_question and send_button:
+    try:
+        res = chain.invoke({"question": user_question})
+        answer = res.content if hasattr(res, "content") else str(res)
+        st.session_state.chat_history.append({"q": user_question, "a": answer})
+    except Exception as e:
+        st.error(f"❌ Gemini API error: {e}")
+        st.session_state.chat_history.append({"q": user_question, "a": "⚠️ There was an error contacting Gemini."})
+
+# --------------------------------------------------
+# Display Chat History
 # --------------------------------------------------
 st.markdown("## 💬 Conversation")
-for q, a in st.session_state.chat:
-    st.markdown(f"<div class='user'><b>You:</b> {q}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='ai'><b>DataSage:</b> {a}</div>", unsafe_allow_html=True)
+if st.session_state.chat_history:
+    for chat in st.session_state.chat_history:
+        st.markdown(f"<div class='user'><b>You:</b> {chat['q']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='ai'><b>DataSage:</b> {chat['a']}</div>", unsafe_allow_html=True)
+else:
+    st.info("👋 Ask your first question about Data Science!")
+
+# --------------------------------------------------
+# Footer
+# --------------------------------------------------
+st.markdown("""
+<hr>
+<p style="text-align:center;font-size:12px;">
+🧠 Powered by Gemini 2.0 • 🖼️ Unsplash • 🚀 Streamlit
+</p>
+""", unsafe_allow_html=True)
+
