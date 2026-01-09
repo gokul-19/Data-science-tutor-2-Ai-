@@ -1,4 +1,4 @@
-ximport random
+import random
 import requests
 import streamlit as st
 import google.generativeai as genai
